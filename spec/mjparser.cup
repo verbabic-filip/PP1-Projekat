@@ -1,0 +1,322 @@
+package rs.ac.bg.etf.pp1;
+
+import java_cup.runtime.*;
+import org.apache.log4j.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+
+parser code {:
+	
+	boolean errorDetected = false;
+	
+	Logger log = Logger.getLogger(getClass());
+   
+   
+    // slede redefinisani metodi za prijavu gresaka radi izmene teksta poruke
+     
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+      done_parsing();
+      report_error(message, info);
+    }
+  
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSintaksna greska", cur_token);
+    }
+  
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatalna greska, parsiranje se ne moze nastaviti", cur_token);
+    }
+
+    public void report_error(String message, Object info) {
+    	errorDetected = true;
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.error(msg.toString());
+    }
+    
+    public void report_info(String message, Object info) {
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.info(msg.toString());
+    }
+    
+:}
+
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null && s.value != null) 
+		log.info(s.toString() + " " + s.value.toString());
+	return s;
+:}
+
+
+terminal PROG, CONST, VOID, IF, ELSE, BREAK, CONTINUE, RETURN, READ, PRINT, DO, WHILE, MAP, NEW, UNION;
+terminal PLUS, MINUS, MUL, DIV, MOD, EQUAL, NOTEQUAL, GRT, GRTEQ, LS, LSEQ, AND, OR, INC, DEC, ASSIGN, SEMI, DOT, COL, COMMA, LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET;
+terminal Integer NUMBER, BOOL;
+terminal Character CHAR;
+terminal String IDENT;
+
+nonterminal Label, Assignop, Addop, Mulop, Setop;
+nonterminal ActPars, ActParsList, ActParsMore, DesignatorStatement, Statement, Program, ConstVarList, ConstList, VarList, ConstDecl, ConstDeclMore, VarDecl, VarDeclMore, MethodList, Constant;
+nonterminal MethodSignature, MethodDecl, MethodVarList, MethodStatementList, ProgramName;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Factor, FactorSign, Expr, Term, MulopFactorList, AddopTermList, Type;
+nonterminal rs.etf.pp1.symboltable.concepts.Obj Designator, DesignatorName, MethodName;
+
+
+
+
+Program ::= (Program) PROG ProgramName ConstVarList LBRACE MethodList RBRACE;
+
+
+
+
+
+ProgramName ::= (ProgramName) IDENT;
+
+
+
+
+
+Type ::= (Type) IDENT;
+
+
+
+
+
+Label ::= (Label) IDENT;
+
+
+
+
+
+Assignop ::= (Assignop) ASSIGN;
+
+
+
+
+
+Addop ::= (Addop_plus) PLUS
+		  |
+		  (Addop_minus) MINUS;
+		  
+		  
+		  
+	
+Mulop ::= (Mulop_mul) MUL
+		  |
+		  (Mulop_div) DIV
+		  |
+		  (Mulop_mod) MOD;
+		  
+		  
+		  
+		  
+Setop ::= (Setop) UNION;
+
+
+
+
+Designator ::= (Designator_list) DesignatorName LBRACKET Expr RBRACKET
+			   |
+			   (Designator_one) IDENT;
+			   
+			   
+			   
+
+DesignatorName ::= (DesignatorName) IDENT;			   
+			   
+			   
+			   
+	
+Expr ::= (Expr) AddopTermList;
+
+
+
+
+		 
+AddopTermList ::= (AddopTermList_more) AddopTermList Addop Term
+				  |
+				  (AddopTermList_one) Term;
+				  
+				  
+			
+			
+			
+Term ::= (Term) MulopFactorList;
+
+
+
+
+
+Factor ::= (Factor_minus) MINUS FactorSign
+		   |
+		   (Factor_plus) FactorSign;
+		   
+		   
+		   	 
+
+FactorSign ::= (FactorSign_n) NUMBER
+		       |
+		       (FactorSign_c) CHAR
+		       |
+		       (FactorSign_exp) LPAREN Expr RPAREN
+		       |
+		       (FactorSign_b) BOOL
+		       |
+		       (FactorSign_desiNoActPars) Designator
+		       |
+		       (FactorSign_desiActPars) Designator LPAREN ActParsList RPAREN
+		       |
+		       (FactorSign_newT) NEW Type LBRACKET Expr RBRACKET;
+		       
+		       
+		       
+		       
+
+MulopFactorList ::= (MulopFactorList_more) MulopFactorList Mulop Factor
+					|
+					(MulopFactorList_one) Factor;
+					
+					
+					
+					
+
+ActPars ::= (ActPars) Expr;
+
+
+ActParsMore ::= (ActParsMore_more) COMMA ActPars ActParsMore
+				|
+				(ActParsMore_e) /* epsilon */;
+
+
+
+ActParsList ::= (ActParsList_list) ActPars ActParsMore
+				|
+				(ActParsList_e) /* epsilon */;
+				
+				
+				
+				
+DesignatorStatement ::= (DesignatorStatement_exp) Designator ASSIGN Expr
+						|
+						(DesignatorStatement_setop) Designator ASSIGN Designator Setop Designator
+						|
+						(DesignatorStatement_inc) Designator INC
+						|
+						(DesignatorStatement_dec) Designator DEC
+						|
+						(DesignatorStatement_actpars) Designator LPAREN ActParsList RPAREN
+						|
+						(DesignatorStatement_error) error:e
+						{: parser.report_error("Oporavak od greske u DS. Linija: " +eleft, null); :};
+						
+						
+						
+						
+						
+Statement ::= (Stetement_desig) DesignatorStatement SEMI
+			  |
+			  (Statement_read) READ LPAREN Designator RPAREN SEMI
+			  |
+			  (Statement_printConst) PRINT LPAREN Expr COMMA NUMBER RPAREN SEMI
+			  |
+			  (Statement_printNoConst) PRINT LPAREN Expr RPAREN SEMI;
+			  
+			  
+			  
+			 
+
+ConstVarList ::= (ConstVarList_const) ConstVarList ConstList
+			     |
+				 (ConstVarList_var) ConstVarList VarList
+				 |
+				 (ConstVarList_e) /* epsilon */;
+				 
+				 
+				 
+				 
+ConstList ::= (ConstList) CONST Type ConstDecl ConstDeclMore SEMI;
+
+
+
+
+ConstDecl ::= (ConstDecl) IDENT ASSIGN Constant;
+
+
+
+
+Constant ::= (Constant_num) NUMBER
+			 |
+			 (Constant_char) CHAR
+			 |
+			 (Constant_bool) BOOL;
+			 
+			 
+			 
+
+ConstDeclMore ::= (ConstDeclMore_more) COMMA ConstDecl ConstDeclMore
+				  |
+				  (ConstDeclMore_e) /* epsilon */;
+				  
+				  
+				
+
+VarList ::= (VarList) Type VarDecl VarDeclMore SEMI;
+
+
+
+
+VarDecl ::= (VarDecl_one) IDENT  
+			|
+			(VarDecl_more) IDENT LBRACKET RBRACKET; 
+			
+			
+			
+
+VarDeclMore ::= (VarDeclMore_more) COMMA VarDecl VarDeclMore 
+				|
+				(VarDeclMore_e) /* epsilon */;
+				
+				
+				
+MethodSignature ::= (MethodSignature) VOID MethodName LPAREN RPAREN;
+
+
+
+
+MethodName ::= (MethodName) IDENT;
+
+
+
+
+MethodList ::= (MethodList_more) MethodList MethodDecl
+			   |
+			   (MethodList_e) /* epsilon */;
+			   
+			   
+			   
+			   
+
+MethodDecl ::= (MethodDecl) MethodSignature MethodVarList LBRACE MethodStatementList RBRACE;
+
+
+
+
+
+MethodVarList ::= (MethodVarList_more) MethodVarList VarList
+				  |
+			      (MethodVarList_e) /* epsilon */;
+			      
+			      
+			      
+			      
+				 
+MethodStatementList	::= (MethodStatementList_more) MethodStatementList Statement
+				        |
+			            (MethodStatementList_e) /* epsilon */;	
+			            
+			            
+			            	 
