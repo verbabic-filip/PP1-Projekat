@@ -69,8 +69,3 @@ The compiler translates Mikrojava source code into `.obj` bytecode executable by
 - Polymorphism
 - Interfaces with default methods
 - Arrays of objects and object creation
-
----
-
-## Project Structure
-
